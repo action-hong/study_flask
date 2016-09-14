@@ -1,16 +1,14 @@
-<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8">
-<meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
-<title>Examples</title>
-<meta name="description" content="">
-<meta name="keywords" content="">
-<link href="" rel="stylesheet">
-</head>
-<body>
-    <h1>This is home page</h1>
-    <h1>{{test}}</h1>
-    <h1>{{test|safe}}</h1>
-</body>
-</html>
+{% extends 'base.html' %}
+{% import "bootstrap/wtf.html" as wtf %}
+{% block title %}
+	Flasky
+{% endblock %}
+
+{% block page_content %}
+	<div class="page-header">
+	{# 	<p>the loacal date and time is {{ moment(current_time).format('LLL')}}</p>
+		<p>that was {{ moment(current_time).fromNow(refresh=True)}}</p> #}
+		<h1>hello,{% if name %}{{name}}{% else %}Stranger{% endif %}!</h1>
+	</div>
+	{{wtf.quick_form(form)}}
+{% endblock %}
