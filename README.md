@@ -1,2 +1,2 @@
 # study_flask
-falsk web开发学习
+flask web开发学习

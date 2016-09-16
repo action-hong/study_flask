@@ -6,10 +6,3 @@
 # @Version : 1.0
 
 __author__ = 'kkopite'
-
-from flask import Blueprint
-
-auth = Blueprint('auth', __name__)
-
-from . import views
-
