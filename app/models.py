@@ -16,6 +16,8 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import UserMixin, AnonymousUserMixin
 from flask import current_app, request
 from itsdangerous import TimedJSONWebSignatureSerializer as Serializer
+from markdown import markdown
+import bleach
 
 
 class Permission:
@@ -62,6 +64,7 @@ class Post(db.Model):
     body = db.Column(db.Text)
     timestamp = db.Column(db.DateTime(), default=datetime.utcnow, index=True)
     author_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    body_html = db.Column(db.Text)
 
     @staticmethod
     def generate_fake(count=100):
@@ -77,6 +80,18 @@ class Post(db.Model):
                         author=u)
             db.session.add(post)
             db.session.commit()
+
+    @staticmethod
+    def on_changed_body(target, value, oldvalue, initiator):
+        allowed_tags = ['a', 'abbr', 'acronym', 'b', 'blockquote', 'code',
+                        'em', 'i', 'li', 'ol', 'pre', 'strong', 'ul',
+                        'h1', 'h2', 'h3', 'p']
+        # markdown将文本装换成html-->使用bleach过滤掉不再allowed_tag里面的tag---->生成纯文本脏哦能的URL转成合适的<a>.
+        target.body_html = bleach.linkify(
+            bleach.clean(markdown(value, output_format='html'), tags=allowed_tags, strip=True))
+
+
+db.event.listen(Post.body, 'set', Post.on_changed_body)
 
 
 class User(db.Model, UserMixin):
