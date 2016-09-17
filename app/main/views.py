@@ -7,18 +7,27 @@
 
 __author__ = 'kkopite'
 
-from flask import render_template, session, redirect, url_for, abort, flash
+from flask import render_template, session, redirect, url_for, abort, flash, request,current_app
 from .. import db
-from ..models import User, Role
+from ..models import User, Role, Permission, Post
 from . import main
-from .forms import EditProfileForm, EditProfileAdminForm
+from .forms import EditProfileForm, EditProfileAdminForm, PostForm
 from flask_login import login_required, current_user
 from ..decorators import admin_required
 
-@main.route('/')
+
+@main.route('/', methods=['POST', 'GET'])
 def index():
+    form = PostForm()
+    if current_user.can(Permission.WRITE_ARTICLES) and form.validate_on_submit():
+        post = Post(author=current_user._get_current_object(), body=form.body.data)
+        db.session.add(post)
+        return redirect(url_for('.index'))
+    page = request.args.get('page',1,type=int)
+    pagination = Post.query.order_by(Post.timestamp.desc()).paginate(page,per_page=current_app.config['FLASKY_POSTS_PER_PAGE'],error_out=False)
+    posts = pagination.items
     # 居然没有打return 再别的地方查半天
-    return render_template('index.html')
+    return render_template('index.html', form=form, posts=posts, pagination=pagination)
 
 
 @main.route('/user/<username>')
@@ -26,7 +35,8 @@ def user(username):
     user = User.query.filter_by(username=username).first()
     if user is None:
         abort(403)
-    return render_template('user.html', user=user)
+    posts = user.posts.order_by(Post.timestamp.desc()).all()
+    return render_template('user.html', user=user, posts=posts)
 
 
 @main.route('/edit-profile', methods=['POST', 'GET'])
@@ -44,6 +54,7 @@ def edit_profile():
     form.location.data = current_user.location
     form.about_me.data = current_user.about_me
     return render_template('edit_profile.html', form=form)
+
 
 @main.route('/edit-profile/<int:id>')
 @login_required

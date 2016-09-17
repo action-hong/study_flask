@@ -56,6 +56,29 @@ class Role(db.Model):
         return '<Role %r>' % self.name
 
 
+class Post(db.Model):
+    __tablename__ = 'posts'
+    id = db.Column(db.Integer, primary_key=True)
+    body = db.Column(db.Text)
+    timestamp = db.Column(db.DateTime(), default=datetime.utcnow, index=True)
+    author_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+
+    @staticmethod
+    def generate_fake(count=100):
+        from random import seed, randint
+        import forgery_py
+
+        seed()
+        user_count = User.query.count()
+        for i in range(count):
+            u = User.query.offset(randint(0, user_count - 1)).first()
+            post = Post(body=forgery_py.lorem_ipsum.sentences(randint(1, 3)),
+                        timestamp=forgery_py.date.date(True),
+                        author=u)
+            db.session.add(post)
+            db.session.commit()
+
+
 class User(db.Model, UserMixin):
     __tablename__ = 'users'
     id = db.Column(db.Integer, primary_key=True)
@@ -70,6 +93,7 @@ class User(db.Model, UserMixin):
     member_since = db.Column(db.DateTime(), default=datetime.utcnow)
     last_since = db.Column(db.DateTime(), default=datetime.utcnow)
     avatar_hash = db.Column(db.String(32))
+    posts = db.relationship('Post', backref='author', lazy='dynamic')
 
     def __init__(self, **kwargs):
         super(User, self).__init__(**kwargs)
@@ -79,8 +103,32 @@ class User(db.Model, UserMixin):
             else:
                 self.role = Role.query.filter_by(default=True).first()
         if self.email is not None and self.avatar_hash is None:
-            self.avatar_hash = hashlib.md5(self.email.encode('utf-8').hexdigest())
+            self.avatar_hash = hashlib.md5(self.email.encode('utf-8')).hexdigest()
 
+    @staticmethod
+    def generate_fake(count=100):
+        from sqlalchemy.exc import IntegrityError
+        from random import seed
+        import forgery_py
+
+        # 模拟一百个用户
+        seed()
+        for i in range(count):
+            u = User(email=forgery_py.internet.email_address(),
+                     username=forgery_py.internet.user_name(True),
+                     password=forgery_py.lorem_ipsum.word(),
+                     confirmed=True,
+                     name=forgery_py.name.full_name(),
+                     location=forgery_py.address.city(),
+                     about_me=forgery_py.lorem_ipsum.sentence(),
+                     member_since=forgery_py.date.date(True))
+            db.session.add(u)
+            try:
+                db.session.commit()
+            except IntegrityError:
+                db.session.rollback()
+
+    # 头像
     def gravatar(self, size=100, default='identicon', rating='g'):
         if request.is_secure:
             url = 'https://secure.gravatar.com/avatar'

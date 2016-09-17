@@ -42,3 +42,8 @@ class EditProfileAdminForm(Form):
     def validate_username(self, field):
         if field.data != self.username.data and User.query.filter_by(username=field.data).first():
             raise ValidationError('Username already registered.')
+
+class PostForm(Form):
+    body = TextAreaField('What is on your mind?', validators=[Required()])
+    submit = SubmitField('Submit')
+
