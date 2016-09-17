@@ -19,10 +19,12 @@ from app.auth.forms import LoginForm, RegistrationForm, ChangePasswordForm, Rese
 
 @auth.before_app_request
 def before_request():
-    if current_user.is_authenticated and not current_user.confirmed and request.endpoint[
-                                                                        :5] != 'auth.' and request.endpoint != 'static':
-        # 用户登录了,没有验证,而且请求内容是于auth相关的,请求不是static,此时跳转到还验证界面
-        return redirect(url_for('auth.unconfirmed'))
+    if current_user.is_authenticated:
+        # 每次一个新请求,就更新访问时间
+        current_user.ping()
+        if not current_user.confirmed and request.endpoint[:5] != 'auth.' and request.endpoint != 'static':
+            # ,没有验证,而且请求内容是于auth相关的,请求不是static,此时跳转到还验证界面
+            return redirect(url_for('auth.unconfirmed'))
 
 
 @auth.route('/unconfirmed')
@@ -56,9 +58,9 @@ def change_password():
             db.session.add(user)  # 更新
             return redirect(url_for('auth.login'))
         flash('Invalid username or password.')
-    if isinstance(current_user, User):
+    # if isinstance(current_user, User):
         # 当前有用户的话,默认使用当前用户
-        form.email.data = current_user.email
+    form.email.data = current_user.email
     return render_template('auth/change_password.html', form=form)
 
 
