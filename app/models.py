@@ -14,9 +14,10 @@ from . import login_manager
 from datetime import datetime
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import UserMixin, AnonymousUserMixin
-from flask import current_app, request
+from flask import current_app, request, url_for
 from itsdangerous import TimedJSONWebSignatureSerializer as Serializer
 from markdown import markdown
+from app.exceptions import ValidationError
 import bleach
 
 
@@ -43,6 +44,17 @@ class Comment(db.Model):
         allowed_tags = ['a', 'abbr', 'acronym', 'b', 'code', 'em', 'i', 'strong']
         target.body_html = bleach.linkify(
             bleach.clean(markdown(value, output_format='html'), tags=allowed_tags, strip=True))
+
+    def to_json(self):
+        json_post = {
+            'url': url_for('api.get_comment', id=self.id, _external=True),
+            'body': self.body,
+            'body_html': self.body_html,
+            'timestamp': self.timestamp,
+            'author': url_for('api.get_user', id=self.author_id, _external=True),
+            'disabled': self.disabled
+        }
+        return json_post
 
 # 监听评论的body
 db.event.listen(Comment.body, 'set', Comment.on_changed_body)
@@ -111,6 +123,25 @@ class Post(db.Model):
         target.body_html = bleach.linkify(
             bleach.clean(markdown(value, output_format='html'), tags=allowed_tags, strip=True))
 
+    def to_json(self):
+        json_post = {
+            'url': url_for('api.get_post', id=self.id, _external=True),
+            'body': self.body,
+            'body_html': self.body_html,
+            'timestamp': self.timestamp,
+            'author': url_for('api.get_user', id=self.author_id, _external=True),
+            'comments': url_for('api.get_post_comments', id=self.id, _external=True),
+            'comment_count': self.comments.count()
+        }
+        return json_post
+
+    @staticmethod
+    def from_json(json_post):
+        body = json_post.get('body')
+        if body is None or body == '':
+            raise ValidationError('post does not have a body')
+        # 客户端只需要看文章就行了,时间,作者也没有资格选择,markdown格式会自动渲染
+        return Post(body=body)
 
 db.event.listen(Post.body, 'set', Post.on_changed_body)
 
@@ -160,6 +191,35 @@ class User(db.Model, UserMixin):
         if self.email is not None and self.avatar_hash is None:
             self.avatar_hash = hashlib.md5(self.email.encode('utf-8')).hexdigest()
 
+    def to_json(self):
+        # 提供给客户端的信息,email,role就没必要了
+        json_post = {
+            'url': url_for('api.get_user', id=self.id, _external=True),
+            'username': self.username,
+            'member_since': self.member_since,
+            'last_since': self.last_since,
+            'posts': url_for('api.get_user_posts', id=self.id, _external=True),
+            'followed_posts': url_for('api.get_user_followed_posts', id=self.id, _external=True),
+            'posts_count': self.posts.count()
+        }
+        return json_post
+
+    # 生成令牌
+    def generate_auth_token(self, expiration):
+        s = Serializer(current_app.config['SECRET_KEY'], expires_in=expiration)
+        return s.dumps({'id': self.id})
+
+    # 验证令牌
+    @staticmethod
+    def verify_auth_token(token):
+        s =  Serializer(current_app.config['SECRET_KEY'])
+        try:
+            data = s.load(token)
+        except:
+            return None
+        return User.query.get(data['id'])
+
+    # 生成100个虚拟用户
     @staticmethod
     def generate_fake(count=100):
         from sqlalchemy.exc import IntegrityError

@@ -7,7 +7,7 @@
 
 __author__ = 'kkopite'
 
-from flask import render_template, session, redirect, url_for, abort, flash, request, current_app, make_response
+from flask import render_template, redirect, url_for, abort, flash, request, current_app, make_response
 from .. import db
 from ..models import User, Role, Permission, Post, Comment
 from . import main
@@ -98,7 +98,7 @@ def post(id):
     page = request.args.get('page', 1, type=int)
     if page == -1:
         page = (post.comments.count() - 1) // current_app.config['FLASKY_COMMENTS_PER_PAGE'] + 1
-    pagination = post.comments.order_by(Comment.timestamp.desc()).paginate(page, per_page=current_app.config[
+    pagination = post.comments.order_by(Comment.timestamp.asc()).paginate(page, per_page=current_app.config[
         'FLASKY_COMMENTS_PER_PAGE'], error_out=False)
     comments = pagination.items
     return render_template('post.html', posts=[post], form=form, comments=comments, pagination=pagination)
