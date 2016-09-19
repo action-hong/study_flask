@@ -15,15 +15,6 @@ from flask_httpauth import HTTPBasicAuth
 
 auth = HTTPBasicAuth()
 
-
-# api蓝本所有的路由都要先进行这个验证
-@api.before_request
-@auth.login_required
-def before_request():
-    if not g.current_user.is_anonymous and not g.current_user.confirmed:
-        return forbidden('Unconfirmed account')
-
-
 @auth.verify_password
 def verify_password(email_or_token, password):
     if email_or_token == '':
@@ -46,8 +37,17 @@ def auth_error():
     return unauthorized('Invalid credentials')
 
 
+@api.before_request
+@auth.login_required
+def before_request():
+    if not g.current_user.is_anonymous and \
+            not g.current_user.confirmed:
+        return forbidden('Unconfirmed account')
+
+
 @api.route('/token')
 def get_token():
-    if g.current_user.is_anonymous() or g.token_used:
+    if g.current_user.is_anonymous or g.token_used:
         return unauthorized('Invalid credentials')
-    return jsonify({'token': g.current_user.generate_auth_token(expiration=3600), 'expiration': 3600})
+    return jsonify({'token': g.current_user.generate_auth_token(
+        expiration=3600), 'expiration': 3600})

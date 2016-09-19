@@ -56,6 +56,13 @@ class Comment(db.Model):
         }
         return json_post
 
+    @staticmethod
+    def from_json(json_comment):
+        body = json_comment.get('body')
+        if body is None or body == '':
+            raise ValidationError('comment does not have a body')
+        return Comment(body=body)
+
 # 监听评论的body
 db.event.listen(Comment.body, 'set', Comment.on_changed_body)
 
@@ -165,7 +172,7 @@ class User(db.Model, UserMixin):
     location = db.Column(db.String(64))
     about_me = db.Column(db.Text())
     member_since = db.Column(db.DateTime(), default=datetime.utcnow)
-    last_since = db.Column(db.DateTime(), default=datetime.utcnow)
+    last_seen = db.Column(db.DateTime(), default=datetime.utcnow)
     avatar_hash = db.Column(db.String(32))
     posts = db.relationship('Post', backref='author', lazy='dynamic')
     comments = db.relationship('Comment', backref='author', lazy='dynamic')
@@ -182,7 +189,6 @@ class User(db.Model, UserMixin):
 
     def __init__(self, **kwargs):
         super(User, self).__init__(**kwargs)
-        self.follow(self)
         if self.role is None:  # 未定义该会员是什么级别的话
             if self.email == current_app.config['FLASKY_ADMIN']:  # 根据本地路径定义的邮箱来判断此时注册的会员是不是管理员
                 self.role = Role.query.filter_by(permissions=0xff).first()
@@ -190,6 +196,7 @@ class User(db.Model, UserMixin):
                 self.role = Role.query.filter_by(default=True).first()
         if self.email is not None and self.avatar_hash is None:
             self.avatar_hash = hashlib.md5(self.email.encode('utf-8')).hexdigest()
+        self.followed.append(Follow(followed=self))
 
     def to_json(self):
         # 提供给客户端的信息,email,role就没必要了
@@ -197,17 +204,17 @@ class User(db.Model, UserMixin):
             'url': url_for('api.get_user', id=self.id, _external=True),
             'username': self.username,
             'member_since': self.member_since,
-            'last_since': self.last_since,
+            'last_seen': self.last_seen,
             'posts': url_for('api.get_user_posts', id=self.id, _external=True),
             'followed_posts': url_for('api.get_user_followed_posts', id=self.id, _external=True),
-            'posts_count': self.posts.count()
+            'post_count': self.posts.count()
         }
         return json_post
 
     # 生成令牌
     def generate_auth_token(self, expiration):
         s = Serializer(current_app.config['SECRET_KEY'], expires_in=expiration)
-        return s.dumps({'id': self.id})
+        return s.dumps({'id': self.id}).decode('ascii')
 
     # 验证令牌
     @staticmethod
@@ -290,7 +297,7 @@ class User(db.Model, UserMixin):
 
     # 更新访问时间
     def ping(self):
-        self.last_since = datetime.utcnow()
+        self.last_seen = datetime.utcnow()
         db.session.add(self)
 
     # 检查室友有某些权限
@@ -371,7 +378,7 @@ class User(db.Model, UserMixin):
         if self.query.filter_by(email=new_email).first() is not None:
             return False
         self.email = new_email
-        self.avatar_hash = hashlib.md5(self.email.encode('utf-8').hexdigest())
+        self.avatar_hash = hashlib.md5(self.email.encode('utf-8')).hexdigest()
         db.session.add(self)
         return True
 

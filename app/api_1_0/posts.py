@@ -40,7 +40,7 @@ def get_posts():
 @auth.login_required
 def get_post(id):
     post = Post.query.get_or_404(id)
-    return jsonify({post.to_json()})
+    return jsonify(post.to_json())
 
 
 @api.route('/posts', methods=['POST'])
@@ -62,6 +62,6 @@ def edit_post(id):
         return forbidden('Insufficient permissions')
     post.body = request.json.get('body', post.body)
     db.session.add(post)
-    return jsonify(post.to_json)
+    return jsonify(post.to_json())
 
 
